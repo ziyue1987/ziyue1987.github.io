@@ -58,6 +58,16 @@
 <li><a href="#workerpool">WorkerPool</a></li>
 </ul>
 </li>
+<li><a href="#usecases"><strong>Use Cases</strong></a><ul>
+<li><a href="#publisher">Publisher</a></li>
+<li><a href="#eventprocessor">EventProcessor</a></li>
+<li><a href="#onepublishertoonebatcheventprocessor">One Publisher to one BatchEventProcessor</a></li>
+<li><a href="#onepublishertothreebatcheventprocessorspipeline">One Publisher to three BatchEventProcessors Pipeline</a></li>
+<li><a href="#onepublishertothreebatcheventprocessorsmultiCast">One Publisher to three BatchEventProcessors MultiCast</a></li>
+<li><a href="#onepublishertotwoworkprocessors">One Publisher to two WorkProcessors</a></li>
+<li><a href="#onepublishertotwoworkerpools">One Publisher to two WorkerPools</a></li>
+</ul>
+</li>
 </ul>
 <h2><a href="id:intruduction">Intruduction</a></h2>
 <p>Disruptor 是Java实现的用于线程间通信的消息组件。核心是一个Lock-free的Ringbuffer。我使用BlockingQueue进行了简单的对比测试，结果表明使用Disruptor来进行线程间通信的效率会高将近一倍。LMAX给出的数据是使用Disruptor能够在一个线程里每秒处理6百万订单。那么Disruptor为什么会如此快呢？通过参考Martin Fowler（Disruptor的开发者之一）的技术博客和Disruptor的源代码，可以总结出以下四条原因：</p>
@@ -160,9 +170,80 @@
 <li>PhasedBackoffWaitStrategy</li>
 </ul>
 <h3><a href="id:batcheventprocessor">BatchEvenProcessor</a></h3>
-<p>在Disruptor中，消费者是以EventProcessor的形式存在的。其中一类消费者是BatchEvenProcessor。BatchEvenProcessor</p>
+<p>在Disruptor中，消费者是以EventProcessor的形式存在的。其中一类消费者是BatchEvenProcessor。每个BatchEvenProcessor有一个Sequence，来记录自己消费RingBuffer中消息的情况。所以，一个消息必然会被每一个BatchEvenProcessor消费。</p>
 <h3><a href="id:workprocessor">WorkProcessor</a></h3>
-<h3><a href="id:workerpool">WorkerPool</a></h3><p>There are <a href="../pages/2013/09/22/disruptor-use-manual.html#disqus_thread">comments</a>.</p>                </article>
+<p>另一类消费者是WorkProcessor。每个WorkProcessor也有一个Sequence，多个WorkProcessor还共享一个Sequence用于互斥的访问RingBuffer。一个消息被一个WorkProcessor消费，就不会被共享一个Sequence的其他WorkProcessor消费。</p>
+<h3><a href="id:workerpool">WorkerPool</a></h3>
+<p>共享同一个Sequence的WorkProcessor可由一个WorkerPool管理，这时，共享的Sequence也由WorkerPool创建。</p>
+<h2><a href="id:usecases">Use Cases</a></h2>
+<p>下面以Disruptor 3.2.0版本为例介绍Disruptor的初级使用方法，大部分代码是出自Disruptor源代码中得perftest部分(Disruptor代码<a href="https://github.com/LMAX-Exchange/disruptor">这里下载</a>)。</p>
+<h3><a href="id:message">消息定义</a></h3>
+<p>Disruptor中消息对象可以自由定义，但是必须定义实现EventFactory<T>接口的消息对象工厂来告诉RingBuffer如何初始化消息对象。</p>
+<div class="highlight"><pre><span class="k">public</span> <span class="nf">final</span> <span class="nb">class</span> <span class="nx">ValueEvent</span>
+<span class="p">{</span>
+    <span class="k">private</span> <span class="nf">long</span> <span class="nb">value</span><span class="p">;</span>
+
+    <span class="k">public</span> <span class="nf">long</span> <span class="nx">getValue</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="k">return</span> <span class="nb">value</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="nf">void</span> <span class="nx">setValue</span><span class="p">(</span><span class="nx">final</span> <span class="nx">long</span> <span class="nb">value</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="n">this.value</span> <span class="o">=</span> <span class="nb">value</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="nf">static</span> <span class="nx">final</span> <span class="nx">EventFactory</span><span class="o">&lt;</span><span class="nx">ValueEvent</span><span class="o">&gt;</span> <span class="n">EVENT_FACTORY</span> <span class="o">=</span> <span class="nb">new</span> <span class="nx">EventFactory</span><span class="o">&lt;</span><span class="nx">ValueEvent</span><span class="o">&gt;</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="k">public</span> <span class="nf">ValueEvent</span> <span class="nx">newInstance</span><span class="p">()</span>
+        <span class="p">{</span>
+            <span class="k">return</span> <span class="nb">new</span> <span class="nx">ValueEvent</span><span class="p">();</span>
+        <span class="p">}</span>
+    <span class="p">};</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<h3><a href="id:producer">Producer</a></h3>
+<p>Disruptor中同样没有定义生产者，而是由RingBuffer提供添加消息的接口。针对单生产者和多生产者两种应用场景，RingBuffer提供了不同的初始化方法：</p>
+<ul>
+<li>
+<p>单生产者应用场景</p>
+<div class="highlight"><pre><span class="k">private</span> <span class="nf">final</span> <span class="nx">RingBuffer</span><span class="o">&lt;</span><span class="nx">ValueEvent</span><span class="o">&gt;</span> <span class="n">ringBuffer</span> <span class="o">=</span>
+    <span class="nx">createSingleProducer</span><span class="p">(</span><span class="nx">ValueEvent.EVENT_FACTORY</span><span class="p">,</span> <span class="nx">BUFFER_SIZE</span><span class="p">,</span> <span class="nb">new</span> <span class="nx">YieldingWaitStrategy</span><span class="p">());</span>
+</pre></div>
+
+
+</li>
+<li>
+<p>多生产者应用场景</p>
+<div class="highlight"><pre><span class="k">private</span> <span class="nf">final</span> <span class="nx">RingBuffer</span><span class="o">&lt;</span><span class="nx">ValueEvent</span><span class="o">&gt;</span> <span class="n">ringBuffer</span> <span class="o">=</span>
+    <span class="nx">createMultiProducer</span><span class="p">(</span><span class="nx">ValueEvent.EVENT_FACTORY</span><span class="p">,</span> <span class="nx">BUFFER_SIZE</span><span class="p">,</span> <span class="nb">new</span> <span class="nx">BusySpinWaitStrategy</span><span class="p">());</span>
+</pre></div>
+
+
+</li>
+</ul>
+<p>初始化的时候需要提供消息工厂，RingBuffer大小，以及一个选定的waitStrategy。向RingBuffer中添加消息的过程分成两阶段：1，申请可用节点，并将消息放入节点中；2，提交节点。</p>
+<div class="highlight"><pre><span class="c1">// 阶段1：申请节点，并将消息放入节点中</span>
+<span class="n">long</span> <span class="n">next</span> <span class="o">=</span> <span class="n">rb</span><span class="p">.</span><span class="n">next</span><span class="p">();</span>
+<span class="n">rb</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="n">next</span><span class="p">).</span><span class="n">setValue</span><span class="p">(</span><span class="mh">0</span><span class="p">);</span>
+
+<span class="c1">// 阶段2：提交节点</span>
+<span class="n">rb</span><span class="p">.</span><span class="n">publish</span><span class="p">(</span><span class="n">next</span><span class="p">);</span>
+</pre></div>
+
+
+<h3><a href="id:eventprocessor">EventProcessor</a></h3>
+<p>Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。</p>
+<p>用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。</p>
+<p>用户还需要结合SequenceBarrier来构造各个EventProcessor之间及其和RingBuffer之间的依赖，，关于依赖的定义，已经在上文解释过了。这里需要说明的是，我们在使用Queue构造pipeline的时候，类似于接水管，每一个步骤需要哪些处理，就用Queue接过去，处理完成后再用Queue接到下一个步骤。这种方式固然实现起来简单，但是消息需要穿过各个Queue，必要的时候还需要对消息进行复制，这会产生大量对Queue的并发访问操作，效率很低。在Disruptor里，相邻的两个步骤被解释成步骤2中的EventProcessor依赖步骤1中的EventProcessor，消息在RingBuffer中依次被步骤1中的EventProcessor和步骤2中的EventProcessor处理。</p>
+<p>不仅EventProcessor对RingBuffer有依赖关系，RingBuffer对EventProcessor也有反向依赖。RingBuffer需要保证在生产者比消费者快得情况下，新生产的消息不会覆盖未被完全消费（即被所有EventProcessor处理）的消息。为了做到这一点，RingBuffer会追踪有依赖关系的EventProcessor中最小的Sequence（如果不能根据依赖关系判断Sequence大小，则全部追踪）。需要追踪的Sequence会加入到RingBuffer的gatingSequence数组中。</p>
+<h3><a href="id:onepublishertoonebatcheventprocessor">One Producer to one BatchEventProcessor</a></h3>
+<h3><a href="id:onepublishertothreebatcheventprocessorspipeline">One Producer to three BatchEventProcessors Pipeline</a></h3>
+<h3><a href="id:onepublishertothreebatcheventprocessorsmultiCast">One Producer to three BatchEventProcessors MultiCast</a></h3>
+<h3><a href="id:onepublishertotwoworkprocessors">One Producer to two WorkProcessors</a></h3>
+<h3><a href="id:onepublishertotwoworkerpools">One Producer to two WorkerPools</a></h3><p>There are <a href="../pages/2013/09/22/disruptor-use-manual.html#disqus_thread">comments</a>.</p>                </article>
                                     <p class="paginator">
         Page 1 / 1
     </p>

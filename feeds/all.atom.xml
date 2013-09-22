@@ -20,6 +20,16 @@
 &lt;li&gt;&lt;a href="#workerpool"&gt;WorkerPool&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
+&lt;li&gt;&lt;a href="#usecases"&gt;&lt;strong&gt;Use Cases&lt;/strong&gt;&lt;/a&gt;&lt;ul&gt;
+&lt;li&gt;&lt;a href="#publisher"&gt;Publisher&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#eventprocessor"&gt;EventProcessor&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#onepublishertoonebatcheventprocessor"&gt;One Publisher to one BatchEventProcessor&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#onepublishertothreebatcheventprocessorspipeline"&gt;One Publisher to three BatchEventProcessors Pipeline&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#onepublishertothreebatcheventprocessorsmultiCast"&gt;One Publisher to three BatchEventProcessors MultiCast&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#onepublishertotwoworkprocessors"&gt;One Publisher to two WorkProcessors&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#onepublishertotwoworkerpools"&gt;One Publisher to two WorkerPools&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h2&gt;&lt;a href="id:intruduction"&gt;Intruduction&lt;/a&gt;&lt;/h2&gt;
 &lt;p&gt;Disruptor 是Java实现的用于线程间通信的消息组件。核心是一个Lock-free的Ringbuffer。我使用BlockingQueue进行了简单的对比测试，结果表明使用Disruptor来进行线程间通信的效率会高将近一倍。LMAX给出的数据是使用Disruptor能够在一个线程里每秒处理6百万订单。那么Disruptor为什么会如此快呢？通过参考Martin Fowler（Disruptor的开发者之一）的技术博客和Disruptor的源代码，可以总结出以下四条原因：&lt;/p&gt;
@@ -122,6 +132,77 @@
 &lt;li&gt;PhasedBackoffWaitStrategy&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3&gt;&lt;a href="id:batcheventprocessor"&gt;BatchEvenProcessor&lt;/a&gt;&lt;/h3&gt;
-&lt;p&gt;在Disruptor中，消费者是以EventProcessor的形式存在的。其中一类消费者是BatchEvenProcessor。BatchEvenProcessor&lt;/p&gt;
+&lt;p&gt;在Disruptor中，消费者是以EventProcessor的形式存在的。其中一类消费者是BatchEvenProcessor。每个BatchEvenProcessor有一个Sequence，来记录自己消费RingBuffer中消息的情况。所以，一个消息必然会被每一个BatchEvenProcessor消费。&lt;/p&gt;
 &lt;h3&gt;&lt;a href="id:workprocessor"&gt;WorkProcessor&lt;/a&gt;&lt;/h3&gt;
-&lt;h3&gt;&lt;a href="id:workerpool"&gt;WorkerPool&lt;/a&gt;&lt;/h3&gt;</summary><category term="并发"></category><category term="Disruptor"></category></entry></feed>
+&lt;p&gt;另一类消费者是WorkProcessor。每个WorkProcessor也有一个Sequence，多个WorkProcessor还共享一个Sequence用于互斥的访问RingBuffer。一个消息被一个WorkProcessor消费，就不会被共享一个Sequence的其他WorkProcessor消费。&lt;/p&gt;
+&lt;h3&gt;&lt;a href="id:workerpool"&gt;WorkerPool&lt;/a&gt;&lt;/h3&gt;
+&lt;p&gt;共享同一个Sequence的WorkProcessor可由一个WorkerPool管理，这时，共享的Sequence也由WorkerPool创建。&lt;/p&gt;
+&lt;h2&gt;&lt;a href="id:usecases"&gt;Use Cases&lt;/a&gt;&lt;/h2&gt;
+&lt;p&gt;下面以Disruptor 3.2.0版本为例介绍Disruptor的初级使用方法，大部分代码是出自Disruptor源代码中得perftest部分(Disruptor代码&lt;a href="https://github.com/LMAX-Exchange/disruptor"&gt;这里下载&lt;/a&gt;)。&lt;/p&gt;
+&lt;h3&gt;&lt;a href="id:message"&gt;消息定义&lt;/a&gt;&lt;/h3&gt;
+&lt;p&gt;Disruptor中消息对象可以自由定义，但是必须定义实现EventFactory&lt;T&gt;接口的消息对象工厂来告诉RingBuffer如何初始化消息对象。&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="k"&gt;public&lt;/span&gt; &lt;span class="nf"&gt;final&lt;/span&gt; &lt;span class="nb"&gt;class&lt;/span&gt; &lt;span class="nx"&gt;ValueEvent&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;private&lt;/span&gt; &lt;span class="nf"&gt;long&lt;/span&gt; &lt;span class="nb"&gt;value&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+    &lt;span class="k"&gt;public&lt;/span&gt; &lt;span class="nf"&gt;long&lt;/span&gt; &lt;span class="nx"&gt;getValue&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nb"&gt;value&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+
+    &lt;span class="k"&gt;public&lt;/span&gt; &lt;span class="nf"&gt;void&lt;/span&gt; &lt;span class="nx"&gt;setValue&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;final&lt;/span&gt; &lt;span class="nx"&gt;long&lt;/span&gt; &lt;span class="nb"&gt;value&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="n"&gt;this.value&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;value&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+
+    &lt;span class="k"&gt;public&lt;/span&gt; &lt;span class="nf"&gt;static&lt;/span&gt; &lt;span class="nx"&gt;final&lt;/span&gt; &lt;span class="nx"&gt;EventFactory&lt;/span&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nx"&gt;ValueEvent&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="n"&gt;EVENT_FACTORY&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;new&lt;/span&gt; &lt;span class="nx"&gt;EventFactory&lt;/span&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nx"&gt;ValueEvent&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;public&lt;/span&gt; &lt;span class="nf"&gt;ValueEvent&lt;/span&gt; &lt;span class="nx"&gt;newInstance&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+        &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nb"&gt;new&lt;/span&gt; &lt;span class="nx"&gt;ValueEvent&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;};&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h3&gt;&lt;a href="id:producer"&gt;Producer&lt;/a&gt;&lt;/h3&gt;
+&lt;p&gt;Disruptor中同样没有定义生产者，而是由RingBuffer提供添加消息的接口。针对单生产者和多生产者两种应用场景，RingBuffer提供了不同的初始化方法：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;单生产者应用场景&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="k"&gt;private&lt;/span&gt; &lt;span class="nf"&gt;final&lt;/span&gt; &lt;span class="nx"&gt;RingBuffer&lt;/span&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nx"&gt;ValueEvent&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="n"&gt;ringBuffer&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt;
+    &lt;span class="nx"&gt;createSingleProducer&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;ValueEvent.EVENT_FACTORY&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;BUFFER_SIZE&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nb"&gt;new&lt;/span&gt; &lt;span class="nx"&gt;YieldingWaitStrategy&lt;/span&gt;&lt;span class="p"&gt;());&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;多生产者应用场景&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="k"&gt;private&lt;/span&gt; &lt;span class="nf"&gt;final&lt;/span&gt; &lt;span class="nx"&gt;RingBuffer&lt;/span&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nx"&gt;ValueEvent&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="n"&gt;ringBuffer&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt;
+    &lt;span class="nx"&gt;createMultiProducer&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;ValueEvent.EVENT_FACTORY&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nx"&gt;BUFFER_SIZE&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="nb"&gt;new&lt;/span&gt; &lt;span class="nx"&gt;BusySpinWaitStrategy&lt;/span&gt;&lt;span class="p"&gt;());&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;初始化的时候需要提供消息工厂，RingBuffer大小，以及一个选定的waitStrategy。向RingBuffer中添加消息的过程分成两阶段：1，申请可用节点，并将消息放入节点中；2，提交节点。&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="c1"&gt;// 阶段1：申请节点，并将消息放入节点中&lt;/span&gt;
+&lt;span class="n"&gt;long&lt;/span&gt; &lt;span class="n"&gt;next&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;rb&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;next&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="n"&gt;rb&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;next&lt;/span&gt;&lt;span class="p"&gt;).&lt;/span&gt;&lt;span class="n"&gt;setValue&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+
+&lt;span class="c1"&gt;// 阶段2：提交节点&lt;/span&gt;
+&lt;span class="n"&gt;rb&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;publish&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;next&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h3&gt;&lt;a href="id:eventprocessor"&gt;EventProcessor&lt;/a&gt;&lt;/h3&gt;
+&lt;p&gt;Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。&lt;/p&gt;
+&lt;p&gt;用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。&lt;/p&gt;
+&lt;p&gt;用户还需要结合SequenceBarrier来构造各个EventProcessor之间及其和RingBuffer之间的依赖，，关于依赖的定义，已经在上文解释过了。这里需要说明的是，我们在使用Queue构造pipeline的时候，类似于接水管，每一个步骤需要哪些处理，就用Queue接过去，处理完成后再用Queue接到下一个步骤。这种方式固然实现起来简单，但是消息需要穿过各个Queue，必要的时候还需要对消息进行复制，这会产生大量对Queue的并发访问操作，效率很低。在Disruptor里，相邻的两个步骤被解释成步骤2中的EventProcessor依赖步骤1中的EventProcessor，消息在RingBuffer中依次被步骤1中的EventProcessor和步骤2中的EventProcessor处理。&lt;/p&gt;
+&lt;p&gt;不仅EventProcessor对RingBuffer有依赖关系，RingBuffer对EventProcessor也有反向依赖。RingBuffer需要保证在生产者比消费者快得情况下，新生产的消息不会覆盖未被完全消费（即被所有EventProcessor处理）的消息。为了做到这一点，RingBuffer会追踪有依赖关系的EventProcessor中最小的Sequence（如果不能根据依赖关系判断Sequence大小，则全部追踪）。需要追踪的Sequence会加入到RingBuffer的gatingSequence数组中。&lt;/p&gt;
+&lt;h3&gt;&lt;a href="id:onepublishertoonebatcheventprocessor"&gt;One Producer to one BatchEventProcessor&lt;/a&gt;&lt;/h3&gt;
+&lt;h3&gt;&lt;a href="id:onepublishertothreebatcheventprocessorspipeline"&gt;One Producer to three BatchEventProcessors Pipeline&lt;/a&gt;&lt;/h3&gt;
+&lt;h3&gt;&lt;a href="id:onepublishertothreebatcheventprocessorsmultiCast"&gt;One Producer to three BatchEventProcessors MultiCast&lt;/a&gt;&lt;/h3&gt;
+&lt;h3&gt;&lt;a href="id:onepublishertotwoworkprocessors"&gt;One Producer to two WorkProcessors&lt;/a&gt;&lt;/h3&gt;
+&lt;h3&gt;&lt;a href="id:onepublishertotwoworkerpools"&gt;One Producer to two WorkerPools&lt;/a&gt;&lt;/h3&gt;</summary><category term="并发"></category><category term="Disruptor"></category></entry></feed>

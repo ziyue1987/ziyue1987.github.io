@@ -23,6 +23,14 @@ Slug: disruptor-use-manual
 	* [BatchEvenProcessor](#batcheventprocessor)
 	* [WorkProcessor](#workprocessor)
 	* [WorkerPool](#workerpool)
+* [**Use Cases**](#usecases)
+	* [Publisher](#publisher)
+	* [EventProcessor](#eventprocessor)
+	* [One Publisher to one BatchEventProcessor](#onepublishertoonebatcheventprocessor)
+	* [One Publisher to three BatchEventProcessors Pipeline](#onepublishertothreebatcheventprocessorspipeline)
+	* [One Publisher to three BatchEventProcessors MultiCast](#onepublishertothreebatcheventprocessorsmultiCast)
+	* [One Publisher to two WorkProcessors](#onepublishertotwoworkprocessors)
+	* [One Publisher to two WorkerPools](#onepublishertotwoworkerpools)
 	
 	
 
@@ -139,7 +147,86 @@ SequenceBarrier在初始化的时候会收集需要依赖的消费者的Sequence
 * PhasedBackoffWaitStrategy
 
 ### [BatchEvenProcessor](id:batcheventprocessor)
-在Disruptor中，消费者是以EventProcessor的形式存在的。其中一类消费者是BatchEvenProcessor。BatchEvenProcessor
+在Disruptor中，消费者是以EventProcessor的形式存在的。其中一类消费者是BatchEvenProcessor。每个BatchEvenProcessor有一个Sequence，来记录自己消费RingBuffer中消息的情况。所以，一个消息必然会被每一个BatchEvenProcessor消费。
 
 ### [WorkProcessor](id:workprocessor)
+另一类消费者是WorkProcessor。每个WorkProcessor也有一个Sequence，多个WorkProcessor还共享一个Sequence用于互斥的访问RingBuffer。一个消息被一个WorkProcessor消费，就不会被共享一个Sequence的其他WorkProcessor消费。
+
 ### [WorkerPool](id:workerpool)
+共享同一个Sequence的WorkProcessor可由一个WorkerPool管理，这时，共享的Sequence也由WorkerPool创建。
+
+## [Use Cases](id:usecases)
+下面以Disruptor 3.2.0版本为例介绍Disruptor的初级使用方法，大部分代码是出自Disruptor源代码中得perftest部分(Disruptor代码[这里下载](https://github.com/LMAX-Exchange/disruptor))。
+
+### [消息定义](id:message)
+Disruptor中消息对象可以自由定义，但是必须定义实现EventFactory<T>接口的消息对象工厂来告诉RingBuffer如何初始化消息对象。
+
+	public final class ValueEvent
+	{
+		private long value;
+	
+    	public long getValue()
+    	{
+        	return value;
+    	}
+	
+    	public void setValue(final long value)
+    	{
+   	    	this.value = value;
+    	}
+	
+    	public static final EventFactory<ValueEvent> EVENT_FACTORY = new EventFactory<ValueEvent>()
+    	{
+        	public ValueEvent newInstance()
+        	{
+            	return new ValueEvent();
+        	}
+    	};
+	}
+	
+
+### [Producer](id:producer)
+Disruptor中同样没有定义生产者，而是由RingBuffer提供添加消息的接口。针对单生产者和多生产者两种应用场景，RingBuffer提供了不同的初始化方法：
+	
+* 单生产者应用场景
+
+		private final RingBuffer<ValueEvent> ringBuffer =
+        	createSingleProducer(ValueEvent.EVENT_FACTORY, BUFFER_SIZE, new YieldingWaitStrategy());
+
+* 多生产者应用场景
+	
+		private final RingBuffer<ValueEvent> ringBuffer =
+        	createMultiProducer(ValueEvent.EVENT_FACTORY, BUFFER_SIZE, new BusySpinWaitStrategy());
+        	
+初始化的时候需要提供消息工厂，RingBuffer大小，以及一个选定的waitStrategy。向RingBuffer中添加消息的过程分成两阶段：1，申请可用节点，并将消息放入节点中；2，提交节点。
+
+	// 阶段1：申请节点，并将消息放入节点中
+	long next = rb.next();
+    rb.get(next).setValue(0);
+    
+    // 阶段2：提交节点
+    rb.publish(next);
+
+### [EventProcessor](id:eventprocessor)
+Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。
+
+用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。
+
+用户还需要结合SequenceBarrier来构造各个EventProcessor之间及其和RingBuffer之间的依赖，，关于依赖的定义，已经在上文解释过了。这里需要说明的是，我们在使用Queue构造pipeline的时候，类似于接水管，每一个步骤需要哪些处理，就用Queue接过去，处理完成后再用Queue接到下一个步骤。这种方式固然实现起来简单，但是消息需要穿过各个Queue，必要的时候还需要对消息进行复制，这会产生大量对Queue的并发访问操作，效率很低。在Disruptor里，相邻的两个步骤被解释成步骤2中的EventProcessor依赖步骤1中的EventProcessor，消息在RingBuffer中依次被步骤1中的EventProcessor和步骤2中的EventProcessor处理。
+
+不仅EventProcessor对RingBuffer有依赖关系，RingBuffer对EventProcessor也有反向依赖。RingBuffer需要保证在生产者比消费者快得情况下，新生产的消息不会覆盖未被完全消费（即被所有EventProcessor处理）的消息。为了做到这一点，RingBuffer会追踪有依赖关系的EventProcessor中最小的Sequence（如果不能根据依赖关系判断Sequence大小，则全部追踪）。需要追踪的Sequence会加入到RingBuffer的gatingSequence数组中。
+
+### [One Producer to one BatchEventProcessor](id:onepublishertoonebatcheventprocessor)
+
+
+### [One Producer to three BatchEventProcessors Pipeline](id:onepublishertothreebatcheventprocessorspipeline)
+
+
+### [One Producer to three BatchEventProcessors MultiCast](id:onepublishertothreebatcheventprocessorsmultiCast)
+
+
+### [One Producer to two WorkProcessors](id:onepublishertotwoworkprocessors)
+
+
+### [One Producer to two WorkerPools](id:onepublishertotwoworkerpools)
+
