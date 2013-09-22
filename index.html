@@ -235,15 +235,142 @@
 
 
 <h3><a href="id:eventprocessor">EventProcessor</a></h3>
-<p>Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。</p>
+<p>Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。两种EventProcessor都实现了Runnable接口，在组装完成后可以直接放入线程中执行。</p>
 <p>用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。</p>
 <p>用户还需要结合SequenceBarrier来构造各个EventProcessor之间及其和RingBuffer之间的依赖，，关于依赖的定义，已经在上文解释过了。这里需要说明的是，我们在使用Queue构造pipeline的时候，类似于接水管，每一个步骤需要哪些处理，就用Queue接过去，处理完成后再用Queue接到下一个步骤。这种方式固然实现起来简单，但是消息需要穿过各个Queue，必要的时候还需要对消息进行复制，这会产生大量对Queue的并发访问操作，效率很低。在Disruptor里，相邻的两个步骤被解释成步骤2中的EventProcessor依赖步骤1中的EventProcessor，消息在RingBuffer中依次被步骤1中的EventProcessor和步骤2中的EventProcessor处理。</p>
-<p>不仅EventProcessor对RingBuffer有依赖关系，RingBuffer对EventProcessor也有反向依赖。RingBuffer需要保证在生产者比消费者快得情况下，新生产的消息不会覆盖未被完全消费（即被所有EventProcessor处理）的消息。为了做到这一点，RingBuffer会追踪有依赖关系的EventProcessor中最小的Sequence（如果不能根据依赖关系判断Sequence大小，则全部追踪）。需要追踪的Sequence会加入到RingBuffer的gatingSequence数组中。</p>
+<p>不仅EventProcessor对RingBuffer有依赖关系，RingBuffer对EventProcessor也有反向依赖。RingBuffer需要保证在生产者比消费者快得情况下，新生产的消息不会覆盖未被完全消费（即被所有EventProcessor处理）的消息。为了做到这一点，RingBuffer会追踪有依赖关系的EventProcessor中最小的Sequence（如果不能根据依赖关系判断Sequence大小，则全部追踪）。需要追踪的Sequence会加入到RingBuffer的gatingSequence数组中。下面通过几个use case说明两种EventProcessor和RingBuffer如何组装。</p>
 <h3><a href="id:onepublishertoonebatcheventprocessor">One Producer to one BatchEventProcessor</a></h3>
+<p>这是最简单的场景，一个BatchEventProcessor</p>
+<div class="highlight"><pre><span class="c1">// 构造RingBuffer</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">RingBuffer</span><span class="o">&lt;</span><span class="n">ValueEvent</span><span class="o">&gt;</span> <span class="n">ringBuffer</span> <span class="o">=</span>
+    <span class="n">createSingleProducer</span><span class="p">(</span><span class="n">ValueEvent</span><span class="p">.</span><span class="no">EVENT_FACTORY</span><span class="p">,</span> <span class="no">BUFFER_SIZE</span><span class="p">,</span> <span class="k">new</span> <span class="n">YieldingWaitStrategy</span><span class="p">());</span>
+
+<span class="c1">// 构造BatchEventProcessor 及依赖关系</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">SequenceBarrier</span> <span class="n">sequenceBarrier</span> <span class="o">=</span> <span class="n">ringBuffer</span><span class="p">.</span><span class="n">newBarrier</span><span class="p">();</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">ValueAdditionEventHandler</span> <span class="n">handler</span> <span class="o">=</span> <span class="k">new</span> <span class="n">ValueAdditionEventHandler</span><span class="p">();</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">ValueEvent</span><span class="o">&gt;</span> <span class="n">batchEventProcessor</span> <span class="o">=</span> <span class="k">new</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">ValueEvent</span><span class="o">&gt;</span><span class="p">(</span><span class="n">ringBuffer</span><span class="p">,</span> <span class="n">sequenceBarrier</span><span class="p">,</span> <span class="n">handler</span><span class="p">);</span>
+
+<span class="c1">// 构造反向依赖</span>
+<span class="n">ringBuffer</span><span class="p">.</span><span class="n">addGatingSequences</span><span class="p">(</span><span class="n">batchEventProcessor</span><span class="p">.</span><span class="n">getSequence</span><span class="p">());</span>
+</pre></div>
+
+
 <h3><a href="id:onepublishertothreebatcheventprocessorspipeline">One Producer to three BatchEventProcessors Pipeline</a></h3>
+<p>三个BatchEventProcessor构成一个pipeline，对一个消息先后进行加工。</p>
+<div class="highlight"><pre><span class="c1">// 构造RingBuffer</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">RingBuffer</span><span class="o">&lt;</span><span class="n">FunctionEvent</span><span class="o">&gt;</span> <span class="n">ringBuffer</span> <span class="o">=</span>
+    <span class="n">createSingleProducer</span><span class="p">(</span><span class="n">FunctionEvent</span><span class="p">.</span><span class="no">EVENT_FACTORY</span><span class="p">,</span> <span class="no">BUFFER_SIZE</span><span class="p">,</span> <span class="k">new</span> <span class="n">YieldingWaitStrategy</span><span class="p">());</span>
+
+<span class="c1">// 构造BatchEventProcessor 及依赖关系</span>
+<span class="c1">// stepOneBatchProcessor依赖RingBuffer</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">SequenceBarrier</span> <span class="n">stepOneSequenceBarrier</span> <span class="o">=</span> <span class="n">ringBuffer</span><span class="p">.</span><span class="n">newBarrier</span><span class="p">();</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">FunctionEventHandler</span> <span class="n">stepOneFunctionHandler</span> <span class="o">=</span> <span class="k">new</span> <span class="n">FunctionEventHandler</span><span class="p">(</span><span class="n">FunctionStep</span><span class="p">.</span><span class="no">ONE</span><span class="p">);</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">FunctionEvent</span><span class="o">&gt;</span> <span class="n">stepOneBatchProcessor</span> <span class="o">=</span>
+    <span class="k">new</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">FunctionEvent</span><span class="o">&gt;</span><span class="p">(</span><span class="n">ringBuffer</span><span class="p">,</span> <span class="n">stepOneSequenceBarrier</span><span class="p">,</span> <span class="n">stepOneFunctionHandler</span><span class="p">);</span>
+
+<span class="c1">// stepTwoBatchProcessor依赖RingBuffer和stepOneBatchProcessor</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">SequenceBarrier</span> <span class="n">stepTwoSequenceBarrier</span> <span class="o">=</span> <span class="n">ringBuffer</span><span class="p">.</span><span class="n">newBarrier</span><span class="p">(</span><span class="n">stepOneBatchProcessor</span><span class="p">.</span><span class="n">getSequence</span><span class="p">());</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">FunctionEventHandler</span> <span class="n">stepTwoFunctionHandler</span> <span class="o">=</span> <span class="k">new</span> <span class="n">FunctionEventHandler</span><span class="p">(</span><span class="n">FunctionStep</span><span class="p">.</span><span class="no">TWO</span><span class="p">);</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">FunctionEvent</span><span class="o">&gt;</span> <span class="n">stepTwoBatchProcessor</span> <span class="o">=</span>
+    <span class="k">new</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">FunctionEvent</span><span class="o">&gt;</span><span class="p">(</span><span class="n">ringBuffer</span><span class="p">,</span> <span class="n">stepTwoSequenceBarrier</span><span class="p">,</span> <span class="n">stepTwoFunctionHandler</span><span class="p">);</span>
+
+<span class="c1">// stepThreeBatchProcessor依赖RingBuffer和stepTwoBatchProcessor</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">SequenceBarrier</span> <span class="n">stepThreeSequenceBarrier</span> <span class="o">=</span> <span class="n">ringBuffer</span><span class="p">.</span><span class="n">newBarrier</span><span class="p">(</span><span class="n">stepTwoBatchProcessor</span><span class="p">.</span><span class="n">getSequence</span><span class="p">());</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">FunctionEventHandler</span> <span class="n">stepThreeFunctionHandler</span> <span class="o">=</span> <span class="k">new</span> <span class="n">FunctionEventHandler</span><span class="p">(</span><span class="n">FunctionStep</span><span class="p">.</span><span class="no">THREE</span><span class="p">);</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">FunctionEvent</span><span class="o">&gt;</span> <span class="n">stepThreeBatchProcessor</span> <span class="o">=</span>
+    <span class="k">new</span> <span class="n">BatchEventProcessor</span><span class="o">&lt;</span><span class="n">FunctionEvent</span><span class="o">&gt;</span><span class="p">(</span><span class="n">ringBuffer</span><span class="p">,</span> <span class="n">stepThreeSequenceBarrier</span><span class="p">,</span> <span class="n">stepThreeFunctionHandler</span><span class="p">);</span>
+
+<span class="c1">// 构造反向依赖，stepThreeBatchProcessor的Sequence最小</span>
+<span class="n">ringBuffer</span><span class="p">.</span><span class="n">addGatingSequences</span><span class="p">(</span><span class="n">stepThreeBatchProcessor</span><span class="p">.</span><span class="n">getSequence</span><span class="p">());</span>
+</pre></div>
+
+
 <h3><a href="id:onepublishertothreebatcheventprocessorsmultiCast">One Producer to three BatchEventProcessors MultiCast</a></h3>
+<p>一个消息被三个BatchEventProcessor处理，但没有先后关系。</p>
+<div class="highlight"><pre><span class="c1">// 构造RingBuffer</span>
+<span class="k">private</span> <span class="nf">final</span> <span class="nx">RingBuffer</span><span class="o">&lt;</span><span class="nx">ValueEvent</span><span class="o">&gt;</span> <span class="n">ringBuffer</span> <span class="o">=</span>
+    <span class="nx">createSingleProducer</span><span class="p">(</span><span class="nx">ValueEvent.EVENT_FACTORY</span><span class="p">,</span> <span class="nx">BUFFER_SIZE</span><span class="p">,</span> <span class="nb">new</span> <span class="nx">YieldingWaitStrategy</span><span class="p">());</span>
+
+<span class="c1">// 构造BatchEventProcessor 及依赖关系</span>
+<span class="k">private</span> <span class="nf">final</span> <span class="nx">SequenceBarrier</span> <span class="n">sequenceBarrier</span> <span class="o">=</span> <span class="nx">ringBuffer.newBarrier</span><span class="p">();</span>
+
+<span class="k">private</span> <span class="nf">final</span> <span class="nx">ValueMutationEventHandler</span><span class="err">[</span><span class="cp">]</span> handlers = new ValueMutationEventHandler<span class="cp">[</span><span class="nx">NUM_EVENT_PROCESSORS</span><span class="cp">]</span>;
+
+handlers<span class="cp">[</span><span class="mi">0</span><span class="cp">]</span> = new ValueMutationEventHandler(Operation.ADDITION);
+handlers<span class="cp">[</span><span class="mi">1</span><span class="cp">]</span> = new ValueMutationEventHandler(Operation.SUBTRACTION);
+handlers<span class="cp">[</span><span class="mi">2</span><span class="cp">]</span> = new ValueMutationEventHandler(Operation.AND);
+
+private final BatchEventProcessor<span class="err">&lt;</span>?&gt;<span class="cp">[]</span> batchEventProcessors = new BatchEventProcessor<span class="cp">[</span><span class="mi">3</span><span class="cp">]</span>;
+
+batchEventProcessors<span class="cp">[</span><span class="mi">0</span><span class="cp">]</span> = new BatchEventProcessor<span class="nt">&lt;ValueEvent&gt;</span>(ringBuffer, sequenceBarrier, handlers<span class="cp">[</span><span class="mi">0</span><span class="cp">]</span>);
+batchEventProcessors<span class="cp">[</span><span class="mi">1</span><span class="cp">]</span> = new BatchEventProcessor<span class="nt">&lt;ValueEvent&gt;</span>(ringBuffer, sequenceBarrier, handlers<span class="cp">[</span><span class="mi">1</span><span class="cp">]</span>);
+batchEventProcessors<span class="cp">[</span><span class="mi">2</span><span class="cp">]</span> = new BatchEventProcessor<span class="nt">&lt;ValueEvent&gt;</span>(ringBuffer, sequenceBarrier, handlers<span class="cp">[</span><span class="mi">2</span><span class="cp">]</span>);
+
+// 构造反向依赖，三个EventProcessor没有依赖关系，将它们的Sequence全部加入
+ringBuffer.addGatingSequences(batchEventProcessors<span class="cp">[</span><span class="mi">0</span><span class="cp">]</span>.getSequence(),
+                              batchEventProcessors<span class="cp">[</span><span class="mi">1</span><span class="cp">]</span>.getSequence(),
+                              batchEventProcessors<span class="cp">[</span><span class="mi">2</span><span class="cp">]</span>.getSequence());
+</pre></div>
+
+
 <h3><a href="id:onepublishertotwoworkprocessors">One Producer to two WorkProcessors</a></h3>
-<h3><a href="id:onepublishertotwoworkerpools">One Producer to two WorkerPools</a></h3><p>There are <a href="./pages/2013/09/22/disruptor-use-manual.html#disqus_thread">comments</a>.</p>                </article>
+<p>一个消息只会被两个WorkProcessor中的一个处理。</p>
+<div class="highlight"><pre><span class="c1">// 构造RingBuffer</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">RingBuffer</span><span class="o">&lt;</span><span class="n">ValueEvent</span><span class="o">&gt;</span> <span class="n">ringBuffer</span> <span class="o">=</span>
+        <span class="n">RingBuffer</span><span class="p">.</span><span class="n">createSingleProducer</span><span class="p">(</span><span class="n">ValueEvent</span><span class="p">.</span><span class="no">EVENT_FACTORY</span><span class="p">,</span>
+                                        <span class="no">BUFFER_SIZE</span><span class="p">,</span>
+                                        <span class="k">new</span> <span class="n">YieldingWaitStrategy</span><span class="p">());</span>
+
+<span class="c1">// 构造拥有两个WorkProcessor的WorkerPool                                        </span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">EventCountingWorkHandler</span><span class="p">[]</span> <span class="n">handlers</span> <span class="o">=</span> <span class="k">new</span> <span class="n">EventCountingWorkHandler</span><span class="p">[</span><span class="mh">2</span><span class="p">];</span>
+<span class="k">for</span> <span class="p">(</span><span class="k">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mh">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mh">2</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">handlers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="k">new</span> <span class="n">EventCountingWorkHandler</span><span class="p">(</span><span class="n">counters</span><span class="p">,</span> <span class="n">i</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="n">private</span> <span class="k">final</span> <span class="n">WorkerPool</span><span class="o">&lt;</span><span class="n">ValueEvent</span><span class="o">&gt;</span> <span class="n">workerPool</span> <span class="o">=</span>
+        <span class="k">new</span> <span class="n">WorkerPool</span><span class="o">&lt;</span><span class="n">ValueEvent</span><span class="o">&gt;</span><span class="p">(</span><span class="n">ringBuffer</span><span class="p">,</span>
+                                   <span class="n">ringBuffer</span><span class="p">.</span><span class="n">newBarrier</span><span class="p">(),</span>
+                                   <span class="k">new</span> <span class="n">FatalExceptionHandler</span><span class="p">(),</span>
+                                   <span class="n">handlers</span><span class="p">);</span>
+
+<span class="c1">// 构造反向依赖</span>
+<span class="n">ringBuffer</span><span class="p">.</span><span class="n">addGatingSequences</span><span class="p">(</span><span class="n">workerPool</span><span class="p">.</span><span class="n">getWorkerSequences</span><span class="p">());</span>
+</pre></div>
+
+
+<h3><a href="id:onepublishertotwoworkerpools">One Producer to two WorkerPools</a></h3>
+<p>一个消息会被两个WorkerPool中的WorkProcessor处理，但在一个WorkerPool中只能被一个WorkProcessor处理。</p>
+<div class="highlight"><pre><span class="c1">// 构造RingBuffer</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">RingBuffer</span><span class="o">&lt;</span><span class="n">ValueEvent</span><span class="o">&gt;</span> <span class="n">ringBuffer</span> <span class="o">=</span>
+        <span class="n">RingBuffer</span><span class="p">.</span><span class="n">createSingleProducer</span><span class="p">(</span><span class="n">ValueEvent</span><span class="p">.</span><span class="no">EVENT_FACTORY</span><span class="p">,</span>
+                                        <span class="no">BUFFER_SIZE</span><span class="p">,</span>
+                                        <span class="k">new</span> <span class="n">YieldingWaitStrategy</span><span class="p">());</span>
+
+<span class="n">SequenceBarrier</span> <span class="n">barrier</span> <span class="o">=</span> <span class="n">ringBuffer</span><span class="p">.</span><span class="n">newBarrier</span><span class="p">();</span>
+
+<span class="c1">// 构造拥有两个WorkProcessor的WorkerPool</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">EventCountingWorkHandler</span><span class="p">[]</span> <span class="n">handlers</span> <span class="o">=</span> <span class="k">new</span> <span class="n">EventCountingWorkHandler</span><span class="p">[</span><span class="mh">4</span><span class="p">];</span>
+<span class="k">for</span> <span class="p">(</span><span class="k">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mh">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mh">4</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">handlers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="k">new</span> <span class="n">EventCountingWorkHandler</span><span class="p">(</span><span class="n">counters</span><span class="p">,</span> <span class="n">i</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="n">private</span> <span class="k">final</span> <span class="n">WorkerPool</span><span class="o">&lt;</span><span class="n">LesStringEvent</span><span class="o">&gt;</span> <span class="n">workerPool0</span> <span class="o">=</span>
+        <span class="k">new</span> <span class="n">WorkerPool</span><span class="o">&lt;</span><span class="n">LesStringEvent</span><span class="o">&gt;</span><span class="p">(</span><span class="n">ringBuffer</span><span class="p">,</span>
+                                       <span class="n">barrier</span><span class="p">,</span>
+                                       <span class="k">new</span> <span class="n">FatalExceptionHandler</span><span class="p">(),</span>
+                                       <span class="n">handlers</span><span class="p">[</span><span class="mh">0</span><span class="p">],</span> <span class="n">handlers</span><span class="p">[</span><span class="mh">1</span><span class="p">]);</span>
+<span class="n">private</span> <span class="k">final</span> <span class="n">WorkerPool</span><span class="o">&lt;</span><span class="n">LesStringEvent</span><span class="o">&gt;</span> <span class="n">workerPool1</span> <span class="o">=</span>
+        <span class="k">new</span> <span class="n">WorkerPool</span><span class="o">&lt;</span><span class="n">LesStringEvent</span><span class="o">&gt;</span><span class="p">(</span><span class="n">ringBuffer</span><span class="p">,</span>
+                                       <span class="n">barrier</span><span class="p">,</span>
+                                       <span class="k">new</span> <span class="n">FatalExceptionHandler</span><span class="p">(),</span>
+                                       <span class="n">handlers</span><span class="p">[</span><span class="mh">2</span><span class="p">],</span> <span class="n">handlers</span><span class="p">[</span><span class="mh">3</span><span class="p">]);</span>
+
+<span class="c1">// 构造反向依赖</span>
+<span class="n">ringBuffer</span><span class="p">.</span><span class="n">addGatingSequences</span><span class="p">(</span><span class="n">workerPool0</span><span class="p">.</span><span class="n">getWorkerSequences</span><span class="p">());</span>
+<span class="n">ringBuffer</span><span class="p">.</span><span class="n">addGatingSequences</span><span class="p">(</span><span class="n">workerPool1</span><span class="p">.</span><span class="n">getWorkerSequences</span><span class="p">());</span>
+</pre></div><p>There are <a href="./pages/2013/09/22/disruptor-use-manual.html#disqus_thread">comments</a>.</p>                </article>
                                     <p class="paginator">
         Page 1 / 1
     </p>

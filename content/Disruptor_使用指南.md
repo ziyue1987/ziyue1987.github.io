@@ -208,25 +208,143 @@ Disruptor中同样没有定义生产者，而是由RingBuffer提供添加消息�
     rb.publish(next);
 
 ### [EventProcessor](id:eventprocessor)
-Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。
+Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。两种EventProcessor都实现了Runnable接口，在组装完成后可以直接放入线程中执行。
 
 用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。
 
 用户还需要结合SequenceBarrier来构造各个EventProcessor之间及其和RingBuffer之间的依赖，，关于依赖的定义，已经在上文解释过了。这里需要说明的是，我们在使用Queue构造pipeline的时候，类似于接水管，每一个步骤需要哪些处理，就用Queue接过去，处理完成后再用Queue接到下一个步骤。这种方式固然实现起来简单，但是消息需要穿过各个Queue，必要的时候还需要对消息进行复制，这会产生大量对Queue的并发访问操作，效率很低。在Disruptor里，相邻的两个步骤被解释成步骤2中的EventProcessor依赖步骤1中的EventProcessor，消息在RingBuffer中依次被步骤1中的EventProcessor和步骤2中的EventProcessor处理。
 
-不仅EventProcessor对RingBuffer有依赖关系，RingBuffer对EventProcessor也有反向依赖。RingBuffer需要保证在生产者比消费者快得情况下，新生产的消息不会覆盖未被完全消费（即被所有EventProcessor处理）的消息。为了做到这一点，RingBuffer会追踪有依赖关系的EventProcessor中最小的Sequence（如果不能根据依赖关系判断Sequence大小，则全部追踪）。需要追踪的Sequence会加入到RingBuffer的gatingSequence数组中。
+不仅EventProcessor对RingBuffer有依赖关系，RingBuffer对EventProcessor也有反向依赖。RingBuffer需要保证在生产者比消费者快得情况下，新生产的消息不会覆盖未被完全消费（即被所有EventProcessor处理）的消息。为了做到这一点，RingBuffer会追踪有依赖关系的EventProcessor中最小的Sequence（如果不能根据依赖关系判断Sequence大小，则全部追踪）。需要追踪的Sequence会加入到RingBuffer的gatingSequence数组中。下面通过几个use case说明两种EventProcessor和RingBuffer如何组装。
 
 ### [One Producer to one BatchEventProcessor](id:onepublishertoonebatcheventprocessor)
+这是最简单的场景，一个BatchEventProcessor
 
+	// 构造RingBuffer
+    private final RingBuffer<ValueEvent> ringBuffer =
+        createSingleProducer(ValueEvent.EVENT_FACTORY, BUFFER_SIZE, new YieldingWaitStrategy());
+        
+    // 构造BatchEventProcessor 及依赖关系
+    private final SequenceBarrier sequenceBarrier = ringBuffer.newBarrier();
+    private final ValueAdditionEventHandler handler = new ValueAdditionEventHandler();
+    private final BatchEventProcessor<ValueEvent> batchEventProcessor = new BatchEventProcessor<ValueEvent>(ringBuffer, sequenceBarrier, handler);
+    
+    // 构造反向依赖
+    ringBuffer.addGatingSequences(batchEventProcessor.getSequence());
 
 ### [One Producer to three BatchEventProcessors Pipeline](id:onepublishertothreebatcheventprocessorspipeline)
 
+三个BatchEventProcessor构成一个pipeline，对一个消息先后进行加工。
+
+	// 构造RingBuffer
+    private final RingBuffer<FunctionEvent> ringBuffer =
+        createSingleProducer(FunctionEvent.EVENT_FACTORY, BUFFER_SIZE, new YieldingWaitStrategy());
+
+	// 构造BatchEventProcessor 及依赖关系
+	// stepOneBatchProcessor依赖RingBuffer
+    private final SequenceBarrier stepOneSequenceBarrier = ringBuffer.newBarrier();
+    private final FunctionEventHandler stepOneFunctionHandler = new FunctionEventHandler(FunctionStep.ONE);
+    private final BatchEventProcessor<FunctionEvent> stepOneBatchProcessor =
+        new BatchEventProcessor<FunctionEvent>(ringBuffer, stepOneSequenceBarrier, stepOneFunctionHandler);
+
+	// stepTwoBatchProcessor依赖RingBuffer和stepOneBatchProcessor
+    private final SequenceBarrier stepTwoSequenceBarrier = ringBuffer.newBarrier(stepOneBatchProcessor.getSequence());
+    private final FunctionEventHandler stepTwoFunctionHandler = new FunctionEventHandler(FunctionStep.TWO);
+    private final BatchEventProcessor<FunctionEvent> stepTwoBatchProcessor =
+        new BatchEventProcessor<FunctionEvent>(ringBuffer, stepTwoSequenceBarrier, stepTwoFunctionHandler);
+
+	// stepThreeBatchProcessor依赖RingBuffer和stepTwoBatchProcessor
+    private final SequenceBarrier stepThreeSequenceBarrier = ringBuffer.newBarrier(stepTwoBatchProcessor.getSequence());
+    private final FunctionEventHandler stepThreeFunctionHandler = new FunctionEventHandler(FunctionStep.THREE);
+    private final BatchEventProcessor<FunctionEvent> stepThreeBatchProcessor =
+        new BatchEventProcessor<FunctionEvent>(ringBuffer, stepThreeSequenceBarrier, stepThreeFunctionHandler);
+
+	// 构造反向依赖，stepThreeBatchProcessor的Sequence最小
+    ringBuffer.addGatingSequences(stepThreeBatchProcessor.getSequence());
+
 
 ### [One Producer to three BatchEventProcessors MultiCast](id:onepublishertothreebatcheventprocessorsmultiCast)
+一个消息被三个BatchEventProcessor处理，但没有先后关系。
+
+	// 构造RingBuffer
+    private final RingBuffer<ValueEvent> ringBuffer =
+        createSingleProducer(ValueEvent.EVENT_FACTORY, BUFFER_SIZE, new YieldingWaitStrategy());
+
+	// 构造BatchEventProcessor 及依赖关系
+    private final SequenceBarrier sequenceBarrier = ringBuffer.newBarrier();
+
+    private final ValueMutationEventHandler[] handlers = new ValueMutationEventHandler[NUM_EVENT_PROCESSORS];
+
+    handlers[0] = new ValueMutationEventHandler(Operation.ADDITION);
+    handlers[1] = new ValueMutationEventHandler(Operation.SUBTRACTION);
+    handlers[2] = new ValueMutationEventHandler(Operation.AND);
+
+    private final BatchEventProcessor<?>[] batchEventProcessors = new BatchEventProcessor[3];
+
+    batchEventProcessors[0] = new BatchEventProcessor<ValueEvent>(ringBuffer, sequenceBarrier, handlers[0]);
+    batchEventProcessors[1] = new BatchEventProcessor<ValueEvent>(ringBuffer, sequenceBarrier, handlers[1]);
+    batchEventProcessors[2] = new BatchEventProcessor<ValueEvent>(ringBuffer, sequenceBarrier, handlers[2]);
+
+	// 构造反向依赖，三个EventProcessor没有依赖关系，将它们的Sequence全部加入
+    ringBuffer.addGatingSequences(batchEventProcessors[0].getSequence(),
+                                  batchEventProcessors[1].getSequence(),
+                                  batchEventProcessors[2].getSequence());
 
 
 ### [One Producer to two WorkProcessors](id:onepublishertotwoworkprocessors)
+一个消息只会被两个WorkProcessor中的一个处理。
 
+	// 构造RingBuffer
+    private final RingBuffer<ValueEvent> ringBuffer =
+            RingBuffer.createSingleProducer(ValueEvent.EVENT_FACTORY,
+                                            BUFFER_SIZE,
+                                            new YieldingWaitStrategy());
+    
+    // 构造拥有两个WorkProcessor的WorkerPool                                        
+    private final EventCountingWorkHandler[] handlers = new EventCountingWorkHandler[2];
+    for (int i = 0; i < 2; i++)
+    {
+        handlers[i] = new EventCountingWorkHandler(counters, i);
+    }
+
+    private final WorkerPool<ValueEvent> workerPool =
+            new WorkerPool<ValueEvent>(ringBuffer,
+                                       ringBuffer.newBarrier(),
+                                       new FatalExceptionHandler(),
+                                       handlers);
+    
+    // 构造反向依赖
+    ringBuffer.addGatingSequences(workerPool.getWorkerSequences());
+    
 
 ### [One Producer to two WorkerPools](id:onepublishertotwoworkerpools)
+一个消息会被两个WorkerPool中的WorkProcessor处理，但在一个WorkerPool中只能被一个WorkProcessor处理。
 
+	// 构造RingBuffer
+    private final RingBuffer<ValueEvent> ringBuffer =
+            RingBuffer.createSingleProducer(ValueEvent.EVENT_FACTORY,
+                                            BUFFER_SIZE,
+                                            new YieldingWaitStrategy());
+    
+    SequenceBarrier barrier = ringBuffer.newBarrier();
+    
+    // 构造拥有两个WorkProcessor的WorkerPool
+    private final EventCountingWorkHandler[] handlers = new EventCountingWorkHandler[4];
+    for (int i = 0; i < 4; i++)
+    {
+        handlers[i] = new EventCountingWorkHandler(counters, i);
+    }
+        
+    private final WorkerPool<LesStringEvent> workerPool0 =
+            new WorkerPool<LesStringEvent>(ringBuffer,
+                                           barrier,
+                                           new FatalExceptionHandler(),
+                                           handlers[0], handlers[1]);
+    private final WorkerPool<LesStringEvent> workerPool1 =
+            new WorkerPool<LesStringEvent>(ringBuffer,
+                                           barrier,
+                                           new FatalExceptionHandler(),
+                                           handlers[2], handlers[3]);
+        
+    // 构造反向依赖
+    ringBuffer.addGatingSequences(workerPool0.getWorkerSequences());
+    ringBuffer.addGatingSequences(workerPool1.getWorkerSequences());
