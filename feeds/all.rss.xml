@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>HANBIN's FARM</title><link>http://ziyue1987.github.io/</link><description></description><atom:link href="http://ziyue1987.github.io/feeds/all.rss.xml" rel="self"></atom:link><lastBuildDate>Sun, 22 Sep 2013 00:00:00 +0800</lastBuildDate><item><title>Disruptor使用指南</title><link>http://ziyue1987.github.io/pages/2013/09/22/disruptor-use-manual.html</link><description>&lt;h1&gt;Disruptor 使用指南&lt;/h1&gt;
-&lt;p&gt;&lt;img alt="Mou icon" src="http://ifeve.com/wp-content/uploads/2013/02/Disruptor-300x144.png" /&gt;&lt;/p&gt;
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>HANBIN's FARM</title><link>http://ziyue1987.github.io/</link><description></description><atom:link href="http://ziyue1987.github.io/feeds/all.rss.xml" rel="self"></atom:link><lastBuildDate>Sun, 22 Sep 2013 00:00:00 +0800</lastBuildDate><item><title>Disruptor使用指南</title><link>http://ziyue1987.github.io/pages/2013/09/22/disruptor-use-manual.html</link><description>&lt;p&gt;&lt;img alt="Mou icon" src="http://ifeve.com/wp-content/uploads/2013/02/Disruptor-300x144.png" /&gt;&lt;/p&gt;
 &lt;p&gt;&lt;a&gt;By Hanbin Zheng&lt;/a&gt;                                &lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;声明：本文系博主原创，欢迎转载，但请注明作者和出处，谢谢！&lt;/strong&gt; &lt;/p&gt;
 &lt;ul&gt;

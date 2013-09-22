@@ -3,7 +3,6 @@ Title: Disruptor使用指南
 Category: Java
 Tags: 并发,Disruptor
 Slug: disruptor-use-manual
-# Disruptor 使用指南
 
 ![Mou icon](http://ifeve.com/wp-content/uploads/2013/02/Disruptor-300x144.png)
 
