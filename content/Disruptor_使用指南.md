@@ -24,13 +24,15 @@ Slug: disruptor-use-manual
 	* [WorkProcessor](#workprocessor)
 	* [WorkerPool](#workerpool)
 * [**Use Cases**](#usecases)
-	* [Publisher](#publisher)
-	* [EventProcessor](#eventprocessor)
+	* [消息定义](#message)
+	* [Producer](#producer)
+	* [EventProcessor及其依赖关系](#eventprocessor)
 	* [One Publisher to one BatchEventProcessor](#onepublishertoonebatcheventprocessor)
 	* [One Publisher to three BatchEventProcessors Pipeline](#onepublishertothreebatcheventprocessorspipeline)
 	* [One Publisher to three BatchEventProcessors MultiCast](#onepublishertothreebatcheventprocessorsmultiCast)
 	* [One Publisher to two WorkProcessors](#onepublishertotwoworkprocessors)
 	* [One Publisher to two WorkerPools](#onepublishertotwoworkerpools)
+* [**结束语**](#end)
 	
 	
 
@@ -207,7 +209,7 @@ Disruptor中同样没有定义生产者，而是由RingBuffer提供添加消息�
     // 阶段2：提交节点
     rb.publish(next);
 
-### [EventProcessor](id:eventprocessor)
+### [EventProcessor及其依赖关系](id:eventprocessor)
 Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。两种EventProcessor都实现了Runnable接口，在组装完成后可以直接放入线程中执行。
 
 用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。
@@ -348,3 +350,5 @@ Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。�
     // 构造反向依赖
     ringBuffer.addGatingSequences(workerPool0.getWorkerSequences());
     ringBuffer.addGatingSequences(workerPool1.getWorkerSequences());
+## [结束语](id:end)
+本文主要讲述了Disruptor得基本使用方法，涉及少量对实现的解释，意在通过Disruptor的用用管窥Disruptor的设计思想。如果有时间，就再写一篇关于Disruptor实现的文章。本文没有涉及Disruptor定义的DSL（领域特定语言）接口，通过DSL可以更方便的使用Disruptor。

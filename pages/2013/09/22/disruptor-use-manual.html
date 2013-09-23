@@ -1,46 +1,37 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-        <meta charset="utf-8">
-        <title>Disruptor使用指南</title>
-        <link rel="stylesheet" href="../../../../theme/css/main.css">
-                <link href="http://ziyue1987.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="HANBIN's FARM Atom Feed" />
-                
-        <!--[if IE]>
-            <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-        <![endif]-->
-</head>
+                <title>HANBIN's FARM</title>
+        <meta charset="utf-8" />
+                <link href="http://ziyue1987.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="HANBIN's FARM Full Atom Feed" />
+                                        <link href="http://ziyue1987.github.io/feeds/all.rss.xml" type="application/rss+xml" rel="alternate" title="HANBIN's FARM RSS Feed" />
+                        <link href="http://ziyue1987.github.io/feeds/java.atom.xml" type="application/atom+xml" rel="alternate" title="HANBIN's FARM Categories Atom Feed" />
+                        <link href="http://ziyue1987.github.io/feeds/java.rss.xml" type="application/rss+xml" rel="alternate" title="HANBIN's FARM Categories RSS Feed" />
+                                </head>
 
 <body id="index" class="home">
-<a href="https://github.com/ziyue1987">
-<img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png" alt="Fork me on GitHub" />
-</a>
         <header id="banner" class="body">
-                <h1><a href="../../../../">HANBIN's FARM </a></h1>
-                <nav><ul>
-                                                                                    <li class="active"><a href="../../../../category/java.html">Java</a></li>
-                                                </ul></nav>
+                <h1><a href="../../../..">HANBIN's FARM <strong></strong></a></h1>
         </header><!-- /#banner -->
+        <nav id="menu"><ul>
+                                          </ul></nav><!-- /#menu -->
         <section id="content" class="body">
-  <article>
-    <header>
-      <h1 class="entry-title">
-        <a href="../../../../pages/2013/09/22/disruptor-use-manual.html" rel="bookmark"
-           title="Permalink to Disruptor使用指南">Disruptor使用指南</a></h1>
-          </header>
-
-    <div class="entry-content">
-      <footer class="post-info">
-        <abbr class="published" title="2013-09-22T00:00:00">
-                2013-09-22
-        </abbr>
-
-                <address class="vcard author">
-                By <a class="url fn" href="../../../../author/hanbin-zheng.html">Hanbin Zheng</a>
-        </address>
-        <p>In <a href="../../../../category/java.html">Java</a>. </p>
-<p>tags: <a href="../../../../tag/bing-fa.html">并发</a><a href="../../../../tag/disruptor.html">Disruptor</a></p>
-</footer><!-- /.post-info -->      <p><img alt="Mou icon" src="http://ifeve.com/wp-content/uploads/2013/02/Disruptor-300x144.png" /></p>
+  <header>
+    <h2 class="entry-title">
+      <a href="../../../../pages/2013/09/22/disruptor-use-manual.html" rel="bookmark"
+         title="Permalink to Disruptor使用指南">Disruptor使用指南</a></h2>
+  
+  </header>
+  <footer class="post-info">
+    <abbr class="published" title="2013-09-22T00:00:00">
+      2013-09-22
+    </abbr>
+        <address class="vcard author">
+      By <a class="url fn" href="../../../../author/hanbin-zheng.html">Hanbin Zheng</a>
+    </address>
+      </footer><!-- /.post-info -->
+  <div class="entry-content">
+    <p><img alt="Mou icon" src="http://ifeve.com/wp-content/uploads/2013/02/Disruptor-300x144.png" /></p>
 <p><a>By Hanbin Zheng</a>                                </p>
 <p><strong>声明：本文系博主原创，欢迎转载，但请注明作者和出处，谢谢！</strong> </p>
 <ul>
@@ -62,8 +53,9 @@
 </ul>
 </li>
 <li><a href="#usecases"><strong>Use Cases</strong></a><ul>
-<li><a href="#publisher">Publisher</a></li>
-<li><a href="#eventprocessor">EventProcessor</a></li>
+<li><a href="#message">消息定义</a></li>
+<li><a href="#producer">Producer</a></li>
+<li><a href="#eventprocessor">EventProcessor及其依赖关系</a></li>
 <li><a href="#onepublishertoonebatcheventprocessor">One Publisher to one BatchEventProcessor</a></li>
 <li><a href="#onepublishertothreebatcheventprocessorspipeline">One Publisher to three BatchEventProcessors Pipeline</a></li>
 <li><a href="#onepublishertothreebatcheventprocessorsmultiCast">One Publisher to three BatchEventProcessors MultiCast</a></li>
@@ -71,6 +63,7 @@
 <li><a href="#onepublishertotwoworkerpools">One Publisher to two WorkerPools</a></li>
 </ul>
 </li>
+<li><a href="#end"><strong>结束语</strong></a></li>
 </ul>
 <h2><a href="id:intruduction">Intruduction</a></h2>
 <p>Disruptor 是Java实现的用于线程间通信的消息组件。核心是一个Lock-free的Ringbuffer。我使用BlockingQueue进行了简单的对比测试，结果表明使用Disruptor来进行线程间通信的效率会高将近一倍。LMAX给出的数据是使用Disruptor能够在一个线程里每秒处理6百万订单。那么Disruptor为什么会如此快呢？通过参考Martin Fowler（Disruptor的开发者之一）的技术博客和Disruptor的源代码，可以总结出以下四条原因：</p>
@@ -237,7 +230,7 @@
 </pre></div>
 
 
-<h3><a href="id:eventprocessor">EventProcessor</a></h3>
+<h3><a href="id:eventprocessor">EventProcessor及其依赖关系</a></h3>
 <p>Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。两种EventProcessor都实现了Runnable接口，在组装完成后可以直接放入线程中执行。</p>
 <p>用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。</p>
 <p>用户还需要结合SequenceBarrier来构造各个EventProcessor之间及其和RingBuffer之间的依赖，，关于依赖的定义，已经在上文解释过了。这里需要说明的是，我们在使用Queue构造pipeline的时候，类似于接水管，每一个步骤需要哪些处理，就用Queue接过去，处理完成后再用Queue接到下一个步骤。这种方式固然实现起来简单，但是消息需要穿过各个Queue，必要的时候还需要对消息进行复制，这会产生大量对Queue的并发访问操作，效率很低。在Disruptor里，相邻的两个步骤被解释成步骤2中的EventProcessor依赖步骤1中的EventProcessor，消息在RingBuffer中依次被步骤1中的EventProcessor和步骤2中的EventProcessor处理。</p>
@@ -374,70 +367,17 @@ ringBuffer.addGatingSequences(batchEventProcessors<span class="cp">[</span><span
 <span class="n">ringBuffer</span><span class="p">.</span><span class="n">addGatingSequences</span><span class="p">(</span><span class="n">workerPool0</span><span class="p">.</span><span class="n">getWorkerSequences</span><span class="p">());</span>
 <span class="n">ringBuffer</span><span class="p">.</span><span class="n">addGatingSequences</span><span class="p">(</span><span class="n">workerPool1</span><span class="p">.</span><span class="n">getWorkerSequences</span><span class="p">());</span>
 </pre></div>
-    </div><!-- /.entry-content -->
-        <div class="comments">
-      <h2>Comments !</h2>
-      <div id="disqus_thread"></div>
-      <script type="text/javascript">
-        var disqus_identifier = "pages/2013/09/22/disruptor-use-manual.html";
-        var disqus_url = "../../../../pages/2013/09/22/disruptor-use-manual.html";
-        (function() {
-        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-        dsq.src = 'http://hanbinsblog.disqus.com/embed.js';
-        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-        })();
-      </script>
-    </div>
-    
-  </article>
-</section>
-        <section id="extras" class="body">
-                        <div class="blogroll">
-                        <h2>blogroll</h2>
-                        <ul>
-                                                    <li><a href="http://getpelican.com/">Pelican</a></li>
-                                                    <li><a href="http://python.org/">Python.org</a></li>
-                                                    <li><a href="http://jinja.pocoo.org/">Jinja2</a></li>
-                                                    <li><a href="#">You can modify those links in your config file</a></li>
-                                                </ul>
-                </div><!-- /.blogroll -->
-                                <div class="social">
-                        <h2>social</h2>
-                        <ul>
-                            <li><a href="http://ziyue1987.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">atom feed</a></li>
-                            
-                                                    <li><a href="#">You can add links in your config file</a></li>
-                                                    <li><a href="#">Another social link</a></li>
-                                                </ul>
-                </div><!-- /.social -->
-                </section><!-- /#extras -->
 
+
+<h2><a href="id:end">结束语</a></h2>
+<p>本文主要讲述了Disruptor得基本使用方法，涉及少量对实现的解释，意在通过Disruptor的用用管窥Disruptor的设计思想。如果有时间，就再写一篇关于Disruptor实现的文章。本文没有涉及Disruptor定义的DSL（领域特定语言）接口，通过DSL可以更方便的使用Disruptor。</p>
+  </div><!-- /.entry-content -->
+</section>
         <footer id="contentinfo" class="body">
                 <address id="about" class="vcard body">
-                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>,
+                which takes great advantage of <a href="http://python.org">Python</a>.
                 </address><!-- /#about -->
-
-                <p>The theme is by <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
         </footer><!-- /#contentinfo -->
-
-    <script type="text/javascript">
-    var _gaq = _gaq || [];
-    _gaq.push(['_setAccount', 'UA-44198192-1']);
-    _gaq.push(['_trackPageview']);
-    (function() {
-        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-    })();
-    </script>
-<script type="text/javascript">
-    var disqus_shortname = 'hanbinsblog';
-    (function () {
-        var s = document.createElement('script'); s.async = true;
-        s.type = 'text/javascript';
-        s.src = 'http://' + disqus_shortname + '.disqus.com/count.js';
-        (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
-    }());
-</script>
 </body>
 </html>

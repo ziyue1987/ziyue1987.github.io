@@ -21,8 +21,9 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;&lt;a href="#usecases"&gt;&lt;strong&gt;Use Cases&lt;/strong&gt;&lt;/a&gt;&lt;ul&gt;
-&lt;li&gt;&lt;a href="#publisher"&gt;Publisher&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href="#eventprocessor"&gt;EventProcessor&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#message"&gt;消息定义&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#producer"&gt;Producer&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#eventprocessor"&gt;EventProcessor及其依赖关系&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="#onepublishertoonebatcheventprocessor"&gt;One Publisher to one BatchEventProcessor&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="#onepublishertothreebatcheventprocessorspipeline"&gt;One Publisher to three BatchEventProcessors Pipeline&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;&lt;a href="#onepublishertothreebatcheventprocessorsmultiCast"&gt;One Publisher to three BatchEventProcessors MultiCast&lt;/a&gt;&lt;/li&gt;
@@ -30,6 +31,7 @@
 &lt;li&gt;&lt;a href="#onepublishertotwoworkerpools"&gt;One Publisher to two WorkerPools&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
+&lt;li&gt;&lt;a href="#end"&gt;&lt;strong&gt;结束语&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h2&gt;&lt;a href="id:intruduction"&gt;Intruduction&lt;/a&gt;&lt;/h2&gt;
 &lt;p&gt;Disruptor 是Java实现的用于线程间通信的消息组件。核心是一个Lock-free的Ringbuffer。我使用BlockingQueue进行了简单的对比测试，结果表明使用Disruptor来进行线程间通信的效率会高将近一倍。LMAX给出的数据是使用Disruptor能够在一个线程里每秒处理6百万订单。那么Disruptor为什么会如此快呢？通过参考Martin Fowler（Disruptor的开发者之一）的技术博客和Disruptor的源代码，可以总结出以下四条原因：&lt;/p&gt;
@@ -196,7 +198,7 @@
 &lt;/pre&gt;&lt;/div&gt;
 
 
-&lt;h3&gt;&lt;a href="id:eventprocessor"&gt;EventProcessor&lt;/a&gt;&lt;/h3&gt;
+&lt;h3&gt;&lt;a href="id:eventprocessor"&gt;EventProcessor及其依赖关系&lt;/a&gt;&lt;/h3&gt;
 &lt;p&gt;Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。两种EventProcessor都实现了Runnable接口，在组装完成后可以直接放入线程中执行。&lt;/p&gt;
 &lt;p&gt;用户需要实现自己的EventHandler来告诉EventProcessor在收到消息的时候怎样处理。&lt;/p&gt;
 &lt;p&gt;用户还需要结合SequenceBarrier来构造各个EventProcessor之间及其和RingBuffer之间的依赖，，关于依赖的定义，已经在上文解释过了。这里需要说明的是，我们在使用Queue构造pipeline的时候，类似于接水管，每一个步骤需要哪些处理，就用Queue接过去，处理完成后再用Queue接到下一个步骤。这种方式固然实现起来简单，但是消息需要穿过各个Queue，必要的时候还需要对消息进行复制，这会产生大量对Queue的并发访问操作，效率很低。在Disruptor里，相邻的两个步骤被解释成步骤2中的EventProcessor依赖步骤1中的EventProcessor，消息在RingBuffer中依次被步骤1中的EventProcessor和步骤2中的EventProcessor处理。&lt;/p&gt;
@@ -332,4 +334,8 @@ ringBuffer.addGatingSequences(batchEventProcessors&lt;span class="cp"&gt;[&lt;/s
 &lt;span class="c1"&gt;// 构造反向依赖&lt;/span&gt;
 &lt;span class="n"&gt;ringBuffer&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;addGatingSequences&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;workerPool0&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;getWorkerSequences&lt;/span&gt;&lt;span class="p"&gt;());&lt;/span&gt;
 &lt;span class="n"&gt;ringBuffer&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;addGatingSequences&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;workerPool1&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;getWorkerSequences&lt;/span&gt;&lt;span class="p"&gt;());&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Hanbin Zheng</dc:creator><pubDate>Sun, 22 Sep 2013 00:00:00 +0800</pubDate><guid>tag:ziyue1987.github.io,2013-09-22:pages/2013/09/22/disruptor-use-manual.html</guid><category>并发</category><category>Disruptor</category></item></channel></rss>
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;&lt;a href="id:end"&gt;结束语&lt;/a&gt;&lt;/h2&gt;
+&lt;p&gt;本文主要讲述了Disruptor得基本使用方法，涉及少量对实现的解释，意在通过Disruptor的用用管窥Disruptor的设计思想。如果有时间，就再写一篇关于Disruptor实现的文章。本文没有涉及Disruptor定义的DSL（领域特定语言）接口，通过DSL可以更方便的使用Disruptor。&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Hanbin Zheng</dc:creator><pubDate>Sun, 22 Sep 2013 00:00:00 +0800</pubDate><guid>tag:ziyue1987.github.io,2013-09-22:pages/2013/09/22/disruptor-use-manual.html</guid><category>并发</category><category>Disruptor</category></item></channel></rss>
