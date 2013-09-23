@@ -1,16 +1,13 @@
 * { margin: 0; padding: 0; }
-dd { margin-left: 23px }
 
 /* *** General Styles *** */
 
 body  {
 	background: url(../images/background.jpg);
 	color: #293331;
-	font: 16px Georgia, "Times New Roman", Times, serif;
+	font: 13px Georgia, "Times New Roman", Times, serif;
 	text-align: center;
 }
-
-pre { font-size:12px }
 
 a {
 	color: #293331;
@@ -40,7 +37,7 @@ h3 {
 
 blockquote {
 	background: url(../images/body.gif) top left repeat-y;
-	font-size: 18px;
+	font-size: 14px;
 	font-style: italic;
 	padding: 5px 0 5px 30px;
 }
@@ -85,7 +82,7 @@ ol {
 
 #footer { 
 	background: url(../images/bottom.gif) no-repeat;
-	font-size: 14px;
+	font-size: 12px;
 	height: 70px;
 	padding: 0 10px 0 20px;
 } 
@@ -99,7 +96,7 @@ ol {
 }
 
 #header h2 {
-	font-size: 20px;
+	font-size: 18px;
 	font-weight: normal;
 	text-align: right;
 }
@@ -111,7 +108,7 @@ ol {
 /* *** Top Menu Styles *** */
 
 #topMenu ul {
-	font-size: 26px;
+	font-size: 24px;
 	line-height: 1em;
 	list-style: none;
 	padding: 14px 30px 0 0;
@@ -149,7 +146,7 @@ ol {
 
 .blogItem h3 {
 	background: url(../images/hr.gif) bottom left no-repeat;
-	font-size: 18px;
+	font-size: 14px;
 	padding-bottom: 6px;
 }
 
@@ -197,12 +194,12 @@ ol {
 	text-align: center;
 }
 
-.floatR, .align-right {
+.floatR {
 	float: right;
 	margin-left: 8px;
 }
 
-.floatL, .align-left { 
+.floatL { 
 	float: left;
 	margin-right: 8px;
 }
