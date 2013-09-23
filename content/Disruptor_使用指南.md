@@ -353,4 +353,4 @@ Disruptor定义了两种EventProcessor：BatchEventProcessor和WorkProcessor。�
     ringBuffer.addGatingSequences(workerPool0.getWorkerSequences());
     ringBuffer.addGatingSequences(workerPool1.getWorkerSequences());
 ## <a name="end" id="end"></a>结束语
-本文主要讲述了Disruptor得基本使用方法，涉及少量对实现的解释，意在通过Disruptor的用用管窥Disruptor的设计思想。如果有时间，就再写一篇关于Disruptor实现的文章。本文没有涉及Disruptor定义的DSL（领域特定语言）接口，通过DSL可以更方便的使用Disruptor。
+本文主要讲述了Disruptor得基本使用方法，涉及少量对实现的解释，意在通过Disruptor的使用管窥Disruptor的设计思路。如果有时间，就再写一篇关于Disruptor实现的文章。本文没有涉及Disruptor定义的DSL（领域特定语言）接口，DSL可以更方便的使用Disruptor。
