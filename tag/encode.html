@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
         
-        <title>HANBIN's FARM - 并发</title>
+        <title>HANBIN's FARM - Encode</title>
         <meta charset="utf-8" />
                 <link href="http://ziyue1987.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="HANBIN's FARM Full Atom Feed" />
                                         <link href="http://ziyue1987.github.io/feeds/all.rss.xml" type="application/rss+xml" rel="alternate" title="HANBIN's FARM RSS Feed" />
@@ -56,47 +56,32 @@
         <div class="eleven columns">
 		         <ol id="post-list">
 								        <li><article class="hentry">
-				                <header> <h2 class="entry-title"><a href="../pages/2013/09/22/disruptor-use-manual.html" rel="bookmark" title="Permalink to Disruptor使用指南">Disruptor使用指南</a></h2> </header>
+				                <header> <h2 class="entry-title"><a href="../pages/2013/09/29/java-string-encode.html" rel="bookmark" title="Permalink to 聊聊Java字符串编码">聊聊Java字符串编码</a></h2> </header>
 				                <footer class="post-info">
-				                    <abbr class="published" title="2013-09-22T00:00:00"> 2013-09-22 </abbr>
+				                    <abbr class="published" title="2013-09-29T00:00:00"> 2013-09-29 </abbr>
 				                    <address class="vcard author">By <a class="url fn" href="../author/hanbin-zheng.html">Hanbin Zheng</a></address>				                </footer><!-- /.post-info -->
-				                <div class="entry-content"> <p><img alt="Mou icon" src="http://ifeve.com/wp-content/uploads/2013/02/Disruptor-300x144.png" />                                </p>
-<p><strong>声明：本文系博主原创，欢迎转载，但请注明作者和出处，谢谢！</strong> </p>
+				                <div class="entry-content"> <p><strong>声明：本文系博主原创，欢迎转载，但请注明作者和出处，谢谢！</strong></p>
 <ul>
-<li><a href="#intruduction"><strong>Intruduction</strong></a><ul>
-<li><a href="#lockvscas">Lock vs CAS</a></li>
-<li><a href="#avoidfalsesharing">避免伪共享</a></li>
-<li><a href="#linkedvsarray">Linked Queue vs Array Ringbuffer</a></li>
-<li><a href="#catching">无时不刻的缓存</a></li>
-</ul>
+<li>
+<p><a href="#openning"><strong>引子</strong></a></p>
 </li>
-<li><a href="#component"><strong>Component</strong></a><ul>
-<li><a href="#sequence">Sequence</a></li>
-<li><a href="#ringbuffer">RingBuffer</a></li>
-<li><a href="#sequencbarrier">SequenceBarrier</a></li>
-<li><a href="#waitstrategy">WaitStrategy</a></li>
-<li><a href="#batcheventprocessor">BatchEvenProcessor</a></li>
-<li><a href="#workprocessor">WorkProcessor</a></li>
-<li><a href="#workerpool">WorkerPool</a></li>
-</ul>
+<li>
+<p><a href="#encoding"><strong>Java中的字符编码</strong></a></p>
 </li>
-<li><a href="#usecases"><strong>Use Cases</strong></a><ul>
-<li><a href="#message">消息定义</a></li>
-<li><a href="#producer">Producer</a></li>
-<li><a href="#eventprocessor">EventProcessor及其依赖关系</a></li>
-<li><a href="#onepublishertoonebatcheventprocessor">One Publisher to one BatchEventProcessor</a></li>
-<li><a href="#onepublishertothreebatcheventprocessorspipeline">One Publisher to three BatchEventProcessors Pipeline</a></li>
-<li><a href="#onepublishertothreebatcheventprocessorsmulticast">One Publisher to three BatchEventProcessors MultiCast</a></li>
-<li><a href="#onepublishertotwoworkprocessors">One Publisher to two ...</a></li></ul></li></ul> </div><!-- /.entry-content -->
+</ul>
+<h2><a name="openning" id="openning"></a>引子</h2>
+<p>这几天尝试使用DES对产品中的某些字符串字段进行加密。本以为不会太费劲，但尝试的过程中却遇到的一些很有趣的问题，当然问题的原因就在本文的标题中：Java字符串编码。以前并没有对这方面内容有过关注，正好借这个机会总结一下。下面首先还是说说我遇到的问题。</p>
+<p>我对一个字符串的byte数组进行DES加密后，再包装成字符串传到对端进行解密，解密当然也是针字符串的byte数组。解密过程出错，异常显示：<code>javax.crypto.BadPaddingException: Given final block not properly padded</code>。貌似是需要对最后一个block补齐，但真正的原因却出乎意料：在用String重新包装加密的byte数组的时候，String对其进行了编码，所以在解密端得到的byte数组已经不是加密后的byte数组了。下面先说说我的解决方案，对加密后的字符串，使用Base64转换成可见字符的字符串，而在对端解密前，先将可见字符串解密成原来的byte数组。由于Base64使用的可见字符在String编码的时候不会被改变，所以成功绕过了String的编码问题。</p>
+<h2><a name="encoding" id="encoding"></a>Java中的字符编码</h2> </div><!-- /.entry-content -->
 
-								<div class="medium primary btn"><a href="../pages/2013/09/22/disruptor-use-manual.html" rel="bookmark" title="Permalink to Disruptor使用指南">Read more <i class="icon-arrow-right"></i></a></div>
+								<div class="medium primary btn"><a href="../pages/2013/09/29/java-string-encode.html" rel="bookmark" title="Permalink to 聊聊Java字符串编码">Read more <i class="icon-arrow-right"></i></a></div>
 
 
 
 								<div class="row tag-row">
 																			<span>Tagged as : </span>
-																					<a class="danger label" href="../tag/bing-fa.html">并发</a>
-																					<a class="danger label" href="../tag/disruptor.html">Disruptor</a>
+																					<a class="danger label" href="../tag/string.html">String</a>
+																					<a class="danger label" href="../tag/encode.html">Encode</a>
 																											</div>
 
 

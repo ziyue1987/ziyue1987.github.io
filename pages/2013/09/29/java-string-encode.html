@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+        
+        <title>聊聊Java字符串编码</title>
+        <meta charset="utf-8" />
+                <link href="http://ziyue1987.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="HANBIN's FARM Full Atom Feed" />
+                                        <link href="http://ziyue1987.github.io/feeds/all.rss.xml" type="application/rss+xml" rel="alternate" title="HANBIN's FARM RSS Feed" />
+                        <link href="http://ziyue1987.github.io/feeds/java.atom.xml" type="application/atom+xml" rel="alternate" title="HANBIN's FARM Categories Atom Feed" />
+                        <link href="http://ziyue1987.github.io/feeds/java.rss.xml" type="application/rss+xml" rel="alternate" title="HANBIN's FARM Categories RSS Feed" />
+                        
+
+        <!-- Mobile viewport optimized: j.mp/bplateviewport -->
+        <meta name="viewport" content="width=device-width,initial-scale=1, maximum-scale=1">
+
+        <link rel="stylesheet" type="text/css" href="../../../../theme/gumby.css" />
+        <link rel="stylesheet" type="text/css" href="../../../../theme/style.css" />
+        <link rel="stylesheet" type="text/css" href="../../../../theme/pygment.css" />
+
+        <script src="../../../../theme/js/libs/modernizr-2.6.2.min.js"></script>
+
+
+          
+
+
+
+        </head>
+
+<body id="index" class="home">
+
+
+    <div class="container">
+
+        <div class="row">
+
+          <header id="banner" class="body">
+                  <h1><a href="../../../..">HANBIN's FARM <strong></strong></a></h1>
+          </header><!-- /#banner -->
+
+            <div id="navigation" class="navbar row">
+              <a href="#" gumby-trigger="#navigation &gt; ul" class="toggle"><i class="icon-menu"></i></a>
+             
+              <ul class="columns">
+                <li><a href="../../../..">Home</a></li>
+
+                                                      <li><a href="../../../../pages/about.html">About</a></li>
+                          
+              </ul>
+            </div>
+
+          <section id="content" class="body">
+
+   <div class="row">
+        <div class="eleven columns">
+
+
+            <header>
+              <h2 class="entry-title">
+                <a href="../../../../pages/2013/09/29/java-string-encode.html" rel="bookmark"
+                   title="Permalink to 聊聊Java字符串编码">聊聊Java字符串编码</a></h2>
+                      
+            </header>
+            <footer class="post-info">
+              <abbr class="published" title="2013-09-29T00:00:00">
+                2013-09-29
+              </abbr>
+                            <address class="vcard author">
+                By <a class="url fn" href="../../../../author/hanbin-zheng.html">Hanbin Zheng</a>
+              </address>
+                          </footer><!-- /.post-info -->
+            <div class="entry-content">
+              <p><strong>声明：本文系博主原创，欢迎转载，但请注明作者和出处，谢谢！</strong></p>
+<ul>
+<li>
+<p><a href="#openning"><strong>引子</strong></a></p>
+</li>
+<li>
+<p><a href="#encoding"><strong>Java中的字符编码</strong></a></p>
+</li>
+</ul>
+<h2><a name="openning" id="openning"></a>引子</h2>
+<p>这几天尝试使用DES对产品中的某些字符串字段进行加密。本以为不会太费劲，但尝试的过程中却遇到的一些很有趣的问题，当然问题的原因就在本文的标题中：Java字符串编码。以前并没有对这方面内容有过关注，正好借这个机会总结一下。下面首先还是说说我遇到的问题。</p>
+<p>我对一个字符串的byte数组进行DES加密后，再包装成字符串传到对端进行解密，解密当然也是针字符串的byte数组。解密过程出错，异常显示：<code>javax.crypto.BadPaddingException: Given final block not properly padded</code>。貌似是需要对最后一个block补齐，但真正的原因却出乎意料：在用String重新包装加密的byte数组的时候，String对其进行了编码，所以在解密端得到的byte数组已经不是加密后的byte数组了。下面先说说我的解决方案，对加密后的字符串，使用Base64转换成可见字符的字符串，而在对端解密前，先将可见字符串解密成原来的byte数组。由于Base64使用的可见字符在String编码的时候不会被改变，所以成功绕过了String的编码问题。</p>
+<h2><a name="encoding" id="encoding"></a>Java中的字符编码</h2>
+            </div><!-- /.entry-content -->
+                        <div class="comments">
+              <h3>Comments</h3>
+              <div id="disqus_thread"></div>
+              <script type="text/javascript">
+                var disqus_identifier = "pages/2013/09/29/java-string-encode.html";
+                (function() {
+                var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                dsq.src = 'http://hanbinsblog.disqus.com/embed.js';
+                (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+              </script>
+            </div>
+            
+
+        </div><!-- /.eleven.columns -->
+        
+     <div class="three columns">
+
+<h4>Pages</h4>
+
+ <ul>
+              <li><a href="../../../../pages/about.html">About</a></li>
+        </ul>
+
+<h4>Categories</h4>
+<ul>
+			<li><a href="../../../../category/java.html">Java</a></li>
+	</ul>
+
+
+<h4>Tags</h4>
+	<ul>
+		    <li class="tag-4"><a href="../../../../tag/disruptor.html">Disruptor</a></li>
+		    <li class="tag-4"><a href="../../../../tag/string.html">String</a></li>
+		    <li class="tag-4"><a href="../../../../tag/encode.html">Encode</a></li>
+		    <li class="tag-4"><a href="../../../../tag/bing-fa.html">并发</a></li>
+	</ul>
+
+
+<nav class="widget">
+  <h4>Social</h4>
+  <ul>
+      <li><a href="http://www.linkedin.com/home?trk=nav_responsive_tab_home">Linkin</a></li>
+    </ul>
+</nav>
+
+</div> </div><!-- /.row -->
+
+
+</section>
+
+       </div><!-- /.row -->
+    </div><!-- /.container -->
+
+
+       <div class="container.nopad bg">
+
+    
+        <footer id="credits" class="row">
+          <div class="seven columns left-center">
+
+                   <address id="about" class="vcard body">
+                    Proudly powered by <a href="http://getpelican.com/">Pelican</a>,
+                    which takes great advantage of <a href="http://python.org">Python</a>.
+                    <br />
+                    Based on the <a target="_blank" href="http://gumbyframework.com">Gumby Framework</a>
+                    </address>
+          </div>
+
+
+          <div class="seven columns">
+            <div class="row">
+              <ul class="socbtns">
+
+                                <li><div class="btn primary"><a href="https://github.com/ziyue1987" target="_blank">Github</a></div></li>
+                
+                
+                
+                                <li><div class="btn danger"><a href="https://plus.google.com/" target="_blank">Google+</a></div></li>
+                
+              </ul>
+            </div>
+          </div>
+        </footer>
+
+    </div>
+
+
+<script type="text/javascript">
+    var disqus_shortname = 'hanbinsblog';
+    (function () {
+        var s = document.createElement('script'); s.async = true;
+        s.type = 'text/javascript';
+        s.src = 'http://' + disqus_shortname + '.disqus.com/count.js';
+        (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+    }());
+</script>
+  <script src="../../../../theme/js/libs/jquery-1.9.1.min.js"></script>
+  <script src="../../../../theme/js/libs/gumby.min.js"></script>
+  <script src="../../../../theme/js/plugins.js"></script>
+
+</body>
+</html>

@@ -5,28 +5,28 @@ xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
 <url>
 <loc>http://ziyue1987.github.io/index.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
 
 <url>
 <loc>http://ziyue1987.github.io/archives.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
 
 <url>
 <loc>http://ziyue1987.github.io/tags.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
 
 <url>
 <loc>http://ziyue1987.github.io/categories.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
@@ -39,6 +39,13 @@ xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 </url>
 
 <url>
+<loc>http://ziyue1987.github.io/pages/2013/09/29/java-string-encode.html</loc>
+<lastmod>2013-09-29T00:00:00-00:00</lastmod>
+<changefreq>monthly</changefreq>
+<priority>0.7</priority>
+</url>
+
+<url>
 <loc>http://ziyue1987.github.io/pages/2013/09/22/disruptor-use-manual.html</loc>
 <lastmod>2013-09-22T00:00:00-00:00</lastmod>
 <changefreq>monthly</changefreq>
@@ -47,28 +54,42 @@ xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
 <url>
 <loc>http://ziyue1987.github.io/category/java.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
+<changefreq>daily</changefreq>
+<priority>0.5</priority>
+</url>
+
+<url>
+<loc>http://ziyue1987.github.io/tag/encode.html</loc>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
 
 <url>
 <loc>http://ziyue1987.github.io/tag/bing-fa.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
+<changefreq>daily</changefreq>
+<priority>0.5</priority>
+</url>
+
+<url>
+<loc>http://ziyue1987.github.io/tag/string.html</loc>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
 
 <url>
 <loc>http://ziyue1987.github.io/tag/disruptor.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
 
 <url>
 <loc>http://ziyue1987.github.io/author/hanbin-zheng.html</loc>
-<lastmod>2013-09-30T17:13:09-00:00</lastmod>
+<lastmod>2013-10-07T22:03:50-00:00</lastmod>
 <changefreq>daily</changefreq>
 <priority>0.5</priority>
 </url>
